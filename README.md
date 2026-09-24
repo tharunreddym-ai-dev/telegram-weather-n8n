@@ -15,7 +15,7 @@ A Telegram bot that takes a natural-language weather question, finds the city in
 
 ## Example
 
-**Reply from a live run** ([`examples/sample_reply.txt`](examples/sample_reply.txt)):
+**Reply from a live run**
 
 > Good day! The sky is currently overcast with light rain (icon 10n). Temperatures hover around 25.4 °C, feeling slightly warmer at 25.7 °C. Humidity sits at 64 %, and atmospheric pressure is steady at 1010 hPa. Winds are blowing from the west‑northwest at about 6.4 m/s, with gusts up to 11.5 m/s. Visibility remains good at 10 km. Stay dry and enjoy your day!
 
