@@ -1,0 +1,323 @@
+{
+  "name": "Weather Reporter",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-oss-20b\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a strict information extraction system. Extract ONLY the city name from the user message. If a city is not explicitly mentioned, return EXACTLY 'not_mentioned'. Do not add explanation, text, or formatting. Output ONLY valid JSON in this format: {\\\"city\\\": \\\"value\\\"}.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.message.text }}\"\n    }\n  ],\n  \"temperature\": 0,\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -640,
+        48
+      ],
+      "id": "cb1a6785-b572-4f38-850b-5c77ee0bef43",
+      "name": "Extract City Name",
+      "credentials": {
+        "groqApi": {
+          "id": "H9x3xQy6H0LLkQBm",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -864,
+        48
+      ],
+      "id": "fa1cdace-29f6-4f1c-b00d-84d86b41665e",
+      "name": "Trigger",
+      "webhookId": "40b81baf-ab35-410c-9b1a-eaefc6df6c8d",
+      "credentials": {
+        "telegramApi": {
+          "id": "xwzAZ03C5uLcQtZw",
+          "name": "tool_space"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the JSON content from Groq API response\nconst content = $input.first().json.choices?.[0]?.message?.content;\n\n// Parse and return\ntry {\n  const parsed = JSON.parse(content);\n  return [{ json: parsed }];\n} catch (err) {\n  return [{\n    json: {\n      error: true,\n      message: \"Failed to parse LLM response\",\n      raw: content\n    }\n  }];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        48
+      ],
+      "id": "dcf6909f-dd3c-49b9-aff9-1bb8ecc3ebb8",
+      "name": "Extract LLM JSON"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d81ae943-e56a-40b7-83bc-58cec0b20d91",
+              "leftValue": "={{ $json.city }}",
+              "rightValue": "=not_mentioned",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -192,
+        48
+      ],
+      "id": "5ad21dee-cd0c-4e98-adb7-130be01ab212",
+      "name": "Validate LLM output"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Trigger').item.json.message.chat.id }}",
+        "text": "Please Mention the Valid city \nEx: How is the weather in Bangalore.                                                                                  ",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        32,
+        -48
+      ],
+      "id": "e4fc6c84-dffc-4355-a609-e588a83cd411",
+      "name": "Ask for City Name",
+      "webhookId": "ca636fa8-ef6e-4602-a983-ec7922fbfd90",
+      "credentials": {
+        "telegramApi": {
+          "id": "xwzAZ03C5uLcQtZw",
+          "name": "tool_space"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "cityName": "={{ $('Extract LLM JSON').item.json.city }}",
+        "language": "en"
+      },
+      "type": "n8n-nodes-base.openWeatherMap",
+      "typeVersion": 1,
+      "position": [
+        32,
+        128
+      ],
+      "id": "b270b201-7224-4443-80d7-186d507117b4",
+      "name": "Get Weather",
+      "credentials": {
+        "openWeatherMapApi": {
+          "id": "31VOKFLqA11rshAX",
+          "name": "open_weather1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = Array.isArray($json) ? $json[0] : $json;\n\nconst lines = [\n  `main ${data.weather[0].main}`,\n  `description ${data.weather[0].description}`,\n  `icon ${data.weather[0].icon}`,\n  `base ${data.base}`,\n  `temp ${data.main.temp}`,\n  `feels_like ${data.main.feels_like}`,\n  `temp_min ${data.main.temp_min}`,\n  `temp_max ${data.main.temp_max}`,\n  `pressure ${data.main.pressure}`,\n  `humidity ${data.main.humidity}`,\n  `sea_level ${data.main.sea_level}`,\n  `grnd_level ${data.main.grnd_level}`,\n  `visibility ${data.visibility}`,\n  `speed ${data.wind.speed}`,\n  `deg ${data.wind.deg}`,\n  `gust ${data.wind.gust}`,\n  `all ${data.clouds.all}`\n];\n\nconst output = lines.join('\\n');\n\nreturn [{ json: { output } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        128
+      ],
+      "id": "d05c909a-fb02-439e-a7ac-609d76c8cad0",
+      "name": "Format Weather Ouput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"openai/gpt-oss-20b\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a weather assistant. Create a weather report from the provided weather data ONLY. Keep the response under 100 words.STRICTLY give the summary report from the given Context only and Draft the Message in a Polite way.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Context-{{ $json.output.replace(/\\n/g, '\\\\n') }}\"\n    }\n  ],\n  \"temperature\": 0.2\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        128
+      ],
+      "id": "098d6de5-9b5f-423f-b53c-986657c72b8b",
+      "name": "Make Summarized Report",
+      "credentials": {
+        "groqApi": {
+          "id": "H9x3xQy6H0LLkQBm",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.choices[0].message.content }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        656,
+        128
+      ],
+      "id": "603a186f-3fac-4691-8837-786efeb63dd3",
+      "name": "Send Weather Report",
+      "webhookId": "808b0002-aae0-4b4e-9375-2ff962afeb6e",
+      "credentials": {
+        "telegramApi": {
+          "id": "xwzAZ03C5uLcQtZw",
+          "name": "tool_space"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# WEATHER REPORTER\n\nA Telegram-based weather assistant that accepts a user's natural-language request and identifies the city they want weather information for.\n\nThe workflow uses an LLM to extract and validate the city name, retrieves real-time weather data from OpenWeatherMap, and formats the raw API response into structured weather information.\n\nA second LLM transforms the weather data into a concise, polite, and easy-to-understand weather report containing only information provided by the weather API.\n\nThe final weather report is automatically sent back to the user through Telegram, while invalid requests are handled by asking the user to provide a valid city name.",
+        "height": 320,
+        "width": 784
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -848,
+        288
+      ],
+      "typeVersion": 1,
+      "id": "14b236f1-ac1b-4982-9a79-f6113f3ff175",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extract City Name": {
+      "main": [
+        [
+          {
+            "node": "Extract LLM JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract City Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract LLM JSON": {
+      "main": [
+        [
+          {
+            "node": "Validate LLM output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate LLM output": {
+      "main": [
+        [
+          {
+            "node": "Ask for City Name",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Weather",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Weather": {
+      "main": [
+        [
+          {
+            "node": "Format Weather Ouput",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Format Weather Ouput": {
+      "main": [
+        [
+          {
+            "node": "Make Summarized Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make Summarized Report": {
+      "main": [
+        [
+          {
+            "node": "Send Weather Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "dee69c27-cba9-41e9-9aeb-bbf6a868f8d9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1630a9b5a6440a44170b073990650ae9a4fd64d7853e1ab0afc6f4352ebda0d8"
+  },
+  "nodeGroups": [],
+  "id": "RmxKN0daEtT7I9Qg",
+  "tags": []
+}
